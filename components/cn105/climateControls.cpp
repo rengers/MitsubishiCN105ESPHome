@@ -88,10 +88,15 @@ bool CN105Climate::processModeChange(const esphome::climate::ClimateCall& call) 
     ESP_LOGD("control", "Mode change asked");
     this->mode = *call.get_mode();
     this->controlMode();
-    // Do NOT call controlTemperature() here unconditionally.
-    // A mode-only change (e.g. switching to DRY) should not emit a SET temperature
-    // packet. If the call also includes a temperature change, processTemperatureChange()
-    // will handle it. This prevents overwriting the user's last setpoint on mode changes.
+    // A Mitsubishi CN105 mode/power SET without its temperature field is accepted by
+    // some units but causes others to fall back to an invalid/off-state temperature.
+    // Re-send the retained mode-appropriate setpoint for a mode-only call. If the same
+    // call includes a target change, processTemperatureChange() supplies that value.
+    if (!call.get_target_temperature_low().has_value() &&
+        !call.get_target_temperature_high().has_value() &&
+        !call.get_target_temperature().has_value()) {
+        this->controlTemperature();
+    }
     return true;
 }
 
