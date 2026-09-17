@@ -88,11 +88,19 @@ bool CN105Climate::processModeChange(const esphome::climate::ClimateCall& call) 
     ESP_LOGD("control", "Mode change asked");
     this->mode = *call.get_mode();
     this->controlMode();
-    // A Mitsubishi CN105 mode/power SET without its temperature field is accepted by
-    // some units but causes others to fall back to an invalid/off-state temperature.
-    // Re-send the retained mode-appropriate setpoint for a mode-only call. If the same
-    // call includes a target change, processTemperatureChange() supplies that value.
-    if (!call.get_target_temperature_low().has_value() &&
+    // A Mitsubishi CN105 mode SET without its temperature field is accepted by some
+    // units but causes others to fall back to an invalid/mode-dependent temperature.
+    // Operational modes require the retained, mode-appropriate setpoint. OFF and
+    // FAN_ONLY do not have a meaningful temperature target and remain mode/power-only.
+    // If this call includes an explicit target, processTemperatureChange() supplies it.
+    const bool operational_mode =
+        this->mode == climate::CLIMATE_MODE_HEAT ||
+        this->mode == climate::CLIMATE_MODE_COOL ||
+        this->mode == climate::CLIMATE_MODE_DRY ||
+        this->mode == climate::CLIMATE_MODE_AUTO ||
+        this->mode == climate::CLIMATE_MODE_HEAT_COOL;
+    if (operational_mode &&
+        !call.get_target_temperature_low().has_value() &&
         !call.get_target_temperature_high().has_value() &&
         !call.get_target_temperature().has_value()) {
         this->controlTemperature();
